@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: nayki-postgres
+    environment:
+      POSTGRES_USER: nayki_user
+      POSTGRES_PASSWORD: nayki_password
+      POSTGRES_DB: nayki_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nayki_user -d nayki_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nayki-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: nayki-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=local
+      - API_PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://nayki_user:nayki_password@postgres:5432/nayki_db
+      - SYNC_DATABASE_URL=postgresql+psycopg://nayki_user:nayki_password@postgres:5432/nayki_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEV_AUTH_ENABLED=true
+      - JWT_ISSUER=https://securetoken.google.com/nayki-production
+      - FIREBASE_PROJECT_ID=nayki-production
+      - H3_RESOLUTION=9
+      - LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
